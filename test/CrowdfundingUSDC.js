@@ -354,4 +354,59 @@ describe("CrowdfundingUSDC", function () {
         .withArgs(funder.address, USDC(300));
     });
   });
+
+  describe("Backers Count", function () {
+    it("Should start with zero backers", async function () {
+      const { crowdfunding } = await loadFixture(deployCrowdfundingUSDCFixture);
+      expect(await crowdfunding.backersCount()).to.equal(0);
+    });
+
+    it("Should count a new backer on first fund", async function () {
+      const { usdc, crowdfunding, funder } = await loadFixture(
+        deployCrowdfundingUSDCFixture
+      );
+      await usdc.connect(funder).approve(crowdfunding, USDC(100));
+      await crowdfunding.connect(funder).fund(USDC(100));
+      expect(await crowdfunding.backersCount()).to.equal(1);
+      expect(await crowdfunding.hasFunded(funder.address)).to.equal(true);
+    });
+
+    it("Should not double-count the same backer funding again", async function () {
+      const { usdc, crowdfunding, funder } = await loadFixture(
+        deployCrowdfundingUSDCFixture
+      );
+      await usdc.connect(funder).approve(crowdfunding, USDC(300));
+      await crowdfunding.connect(funder).fund(USDC(100));
+      await crowdfunding.connect(funder).fund(USDC(200));
+      expect(await crowdfunding.backersCount()).to.equal(1);
+    });
+
+    it("Should count multiple distinct backers", async function () {
+      const { usdc, crowdfunding, funder, other } = await loadFixture(
+        deployCrowdfundingUSDCFixture
+      );
+      await usdc.connect(funder).approve(crowdfunding, USDC(100));
+      await crowdfunding.connect(funder).fund(USDC(100));
+      await usdc.connect(other).approve(crowdfunding, USDC(100));
+      await crowdfunding.connect(other).fund(USDC(100));
+      expect(await crowdfunding.backersCount()).to.equal(2);
+    });
+
+    it("Should keep hasFunded true after refund (backer stays counted)", async function () {
+      const { usdc, crowdfunding, funder, deadline } = await loadFixture(
+        deployCrowdfundingUSDCFixture
+      );
+      await usdc.connect(funder).approve(crowdfunding, USDC(300));
+      await crowdfunding.connect(funder).fund(USDC(300));
+      expect(await crowdfunding.backersCount()).to.equal(1);
+
+      await time.increaseTo(deadline);
+      await crowdfunding.connect(funder).claimRefund();
+
+      // 退款后 contributions 清零，但 hasFunded 标记保留 → backersCount 不变
+      expect(await crowdfunding.contributions(funder.address)).to.equal(0);
+      expect(await crowdfunding.hasFunded(funder.address)).to.equal(true);
+      expect(await crowdfunding.backersCount()).to.equal(1);
+    });
+  });
 });

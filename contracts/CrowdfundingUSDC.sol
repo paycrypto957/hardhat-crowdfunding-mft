@@ -15,6 +15,10 @@ contract CrowdfundingUSDC {
 
     mapping(address => uint256) public contributions;
 
+    // 参与人数（每个地址只计一次；hasFunded 持久保留，退款后也不重置）
+    uint256 public backersCount;
+    mapping(address => bool) public hasFunded;
+
     event Funded(address indexed funder, uint256 amount, uint256 totalRaised);
     event Withdrawn(address indexed owner, uint256 amount);
     event Refunded(address indexed funder, uint256 amount);
@@ -49,6 +53,11 @@ contract CrowdfundingUSDC {
         require(amount > 0, "Must fund positive amount");
 
         // Checks-Effects：先记账再转账，防恶意代币回调重入
+        // 严格统计参与人数：每个地址只计一次（hasFunded 持久保留，退款后也不重置）
+        if (!hasFunded[msg.sender]) {
+            hasFunded[msg.sender] = true;
+            backersCount += 1;
+        }
         contributions[msg.sender] += amount;
         totalRaised += amount;
 
